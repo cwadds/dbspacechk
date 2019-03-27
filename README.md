@@ -6,31 +6,31 @@ This Perl script and associated ini file can be used to monitor dbspace usage in
 
 The ini file contains sections which are treated differently.
 
-* [ENV] - The environment section
+* **[ENV]** - The environment section
 
   All of the data in this section will be added to the shell script which is run the generated SQL command.
   Each element will generate the following: export LH_Value=RH_Value
   The intenstion is to ensure that a sane Informix environment is available.
 
-* [EMAIL] - The eMail section
+* **[EMAIL]** - The eMail section
 
   This section contains email send to send from and cc data.
   It can also optionally contain an SMTP server name and a username and password pair.
   These will be used to connect to an SMTP server which requires authentication.
 
-* [DBSPACES] - List of dbspaces to report
+* **[DBSPACES]** - List of dbspaces to report
 
   This section contains pairs of dbspaces and the warning limit.
 
 ## The output files
 
 The script generates two files: 
-* dbspacechk.csv
+* **dbspacechk.csv**
 
   This file has CSV type data appended to it each time the script runs.
   It contains a timestamp, dbspace name, the size of the dbspace, the amount of free space, the used space, percent used and the percentage limit.
 
-* dbspacechk.log
+* **dbspacechk.log**
 
   This file has a simple texual report detailing the same information in an easy to read format.
 
