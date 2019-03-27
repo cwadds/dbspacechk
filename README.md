@@ -36,7 +36,7 @@ The script generates two files:
 
 ## Other information
 
-The script can be run manually, but probably should be run from **cron**.  An example cron entry might be:
+The script can be run manually, but probably should be run from **cron**.  An example cron entry to run the script every 5 minutes could be:
 
 `*/5 * * * *  /opt/informix/dbspacechk/dbspacechk.pl > /tmp/dbspacechk.log 2>&1`
 
