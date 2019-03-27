@@ -36,6 +36,9 @@ The script generates two files:
 
 ## Other information
 
+The script can be run manually, but probably should be run from **cron**.  An example cron entry might be:
+`*/5 * * * *  /opt/informix/dbspacechk/dbspacechk.pl > /tmp/dbspacechk.log 2>&1`
+
 The script will email the log file to the recipients listed in the ini file if the limits are exceeded on any of the dbspaces.
 
 Additionally, each Sunday, the CSV file is emailed and then cleared.
