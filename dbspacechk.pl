@@ -177,6 +177,10 @@ if ( $exceeded > 0 ) {
     &send_email;
 }
 
+# Display the logfile report
+# Useful if run from the command line
+system("cat $logfile");
+
 # These next few lines define the output format of the logfile
 format LOG_TOP =
 DBSpace Name            Size MB     Free MB    Used MB   Percent     Limit
