@@ -16,7 +16,7 @@ The ini file contains sections which are treated differently.
 
   This section contains email send to send from and cc data.
   It can also optionally contain an SMTP server name and a username and password pair.
-  These will be used to connec t to an SMTP server which requires authentication.
+  These will be used to connect to an SMTP server which requires authentication.
 
 * [DBSPACES] - List of dbspaces to report
 
