@@ -1,4 +1,4 @@
-# Informix DBSpace Size Checker
+# Informix DBSpace Size Monitor Script
 
 This Perl script and associated ini file can be used to monitor dbspace usage in an Informix database.
 
