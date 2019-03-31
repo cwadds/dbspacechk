@@ -307,8 +307,8 @@ sub email_csv {
 
     # Time to send the email
     $mail_subject  = "DBSpace CSV file from $host";
-    $mail_message  = "The attached CSV file contains all of the results of\n";
-    $mail_message .= "the $0 script for the last week.\n";
+    $mail_message  = "The attached CSV file contains all of the results of\r\n";
+    $mail_message .= "the $0 script for the last week.\r\n";
     $mail_attach   = $csvfile;
     $mail_attname  = "$basename.csv";
 
