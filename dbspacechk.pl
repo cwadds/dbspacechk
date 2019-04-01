@@ -29,7 +29,8 @@ my $logdir   = $config{'ENV'}{'LOGDIR'};
    $logdir   = '/var/log/informix' unless $logdir;
 my $logfile  = "$logdir/$basename.log";
 my $csvfile  = "$logdir/$basename.csv";
-my $lockfile = "$logdir/$basename.lck";
+my $statfile = "$logdir/$basename.stat";
+my $logtext  = '';
 
 # Mail variables
 my $msg          = '';
@@ -39,10 +40,11 @@ my $mail_cc      = $config{'EMAIL'}{'MAILCC'};
 my $mail_host    = $config{'EMAIL'}{'SMTPHOST'};
 my $mail_user    = $config{'EMAIL'}{'SMTPUSER'};
 my $mail_pass    = $config{'EMAIL'}{'SMTPPASS'};
-my $mail_subject = "DBSpace Checker for $host";
-my $mail_message = 'WARNING: One or more dbspaces has exceeded the set limit';
-my $mail_attach  = $logfile;
-my $mail_attname = "$basename.log";
+my $mail_type    = '';
+my $mail_subject = '';
+my $mail_message = '';
+my $mail_attach  = '';
+my $mail_attname = '';
 
 # many, many variables...
 my $cmd   = '';
@@ -54,14 +56,48 @@ my $pctu  = 0;
 my @gulp  = ();
 my $junk  = '';
 my $limit = 0;
+my $start = 0;
+my %l     = ();
+my $exceeded = 0;
+my $stat_date = '';
 
 # Timestamp for csv report and "is it Sunday" variable
 my $timestamp = POSIX::strftime("%Y/%m/%d %H:%M:%S", localtime);
+# Timestamp to go in the stat file
+my $curr_date = POSIX::strftime("%Y%m%d", localtime);
 # Sunday is day 0, which evaluates to false, so invert the result
 my $sunday = POSIX::strftime("%w", localtime) ? 0 : 1;
 
-# If it IS Sunday, send out the weekly email of the CSV records
-&email_csv;
+# Retrieve the last status date from the stat file
+if ( open(STAT, "< $statfile")) {
+    $stat_date = <STAT>;
+    close STAT;
+} else {
+    # If the file doesn't exist, set the status date to "yesterday"
+    # # NB: This will always work because we are treating the date
+    # as just a number, so (20190101 - 1), even though not a date
+    # will still work with the '<' operator
+    $stat_date = $curr_date - 1;
+}
+
+# If we are the first run after midnight (IE: a date change)
+if ( $stat_date < $curr_date ) {
+    # Send an "I'm alive" email
+    $mail_subject = "DBSpace Checker for $host is alive";
+    $mail_message = "DBSpace Checker is alive";
+    &send_email;
+
+    if ( $sunday ) {
+        # Call the subroutine to send out the 
+        # weekly email of all the CSV records
+        &email_csv;
+    }
+
+    # Update the stat file
+    open my $stat, '>', $statfile;
+    print $stat $curr_date;
+    close $stat;
+}
 
 # Assemble the list of dbspaces to report
 foreach my $i ( sort keys $config{'DBSPACES'} ) {
@@ -82,12 +118,15 @@ WHERE c.dbsnum = s.dbsnum
 GROUP BY s.name);
 
 # Open output files
-open LOG, ">  $logfile" or die "cannot open LOG: $logfile $?\n";
-open CSV, ">> $csvfile" or die "cannot open CSV: $csvfile $?\n";
+open(LOGFILE, ">  $logfile") or die "cannot open LOGFILE: $logfile $?\n";
+open(CSV,     ">> $csvfile") or die "cannot open CSV: $csvfile $?\n";
+
+# Open a FD to a scalar in memory to have the log report available
+open(LOG, '>', \$logtext) or die "Can't open LOG file: $!\n";
  
 # Create a temporary sql file which will be removed when we finish
 # and write the SQL into it.
-my ($SQL, $filename) = tempfile( UNLINK => 1, SUFFIX => '.sql') or die "cannot create temp file: $?\n";
+my ($SQL, $sqlname) = tempfile( UNLINK => 1, SUFFIX => '.sql') or die "cannot create temp file: $?\n";
 
 print $SQL $sql;
 close $SQL;
@@ -95,16 +134,8 @@ close $SQL;
 # Create the shell script to run the SQL
 my $script = &write_script;
 
-# Make it executable
-chmod 0700, $script;
-
 # And gather the output into the @gulp array
 @gulp = `$script`;
-
-# Some more variables
-my $start = 0;
-my %l = ();
-my $exceeded = 0;
 
 # Read the output of the SQL command
 while ( @gulp ) {
@@ -139,7 +170,7 @@ while ( @gulp ) {
             $used = $size - $free;
             $pctu = ($used / $size) * 100;
 
-            # Retrieve the waring limit from the config array
+            # Retrieve the warning limit from the config array
             $limit = $config{'DBSPACES'}{$name};
 
             # Increment the exceeded flag if the size is over limit
@@ -154,24 +185,27 @@ while ( @gulp ) {
             # Inside the dbspace block
             # Split the line into key/value pairs
             my ($key, $val) = split;
-            #
+
             # And push them into the hash
             $l{$key} = $val;
         }
     }
 }
- 
-# Close both of the opened files
+
+# Close the opened files
 close LOG;
 close CSV;
 
+print LOGFILE $logtext;
+close LOGFILE;
+
 # If we need to send off an email
 if ( $exceeded > 0 ) {
-    # Set up the vairable portions
+    # Set up the variable portions
     $mail_subject = "DBSpace Checker for $host";
-    $mail_message = 'WARNING: One or more dbspaces has exceeded the set limit';
-    $mail_attach  = $logfile;
-    $mail_attname = "$basename.log";
+    $mail_message = "WARNING: One or more dbspaces has exceeded the set limit\n\n$logtext";
+    $mail_attach  = '';
+    $mail_attname = '';
 
     # And call the send email subroutine
     &send_email;
@@ -179,9 +213,11 @@ if ( $exceeded > 0 ) {
 
 # Display the logfile report
 # Useful if run from the command line
-system("cat $logfile");
+print $logtext;
 
-# These next few lines define the output format of the logfile
+# End of program
+
+# These next few lines define the output format of the logfile for the write command
 format LOG_TOP =
 DBSpace Name            Size MB     Free MB    Used MB   Percent     Limit
 -------------------  ----------  ---------- ---------- --------- ---------
@@ -191,6 +227,8 @@ format LOG =
 @<<<<<<<<<<<<<<<<<<  @>>>>>>>>>  @>>>>>>>>> @>>>>>>>>> @####.##% @####.##%
 $name,               $size,      $free,     $used,     $pctu,    $limit
 .
+
+# Subroutines
 
 # This subroutine reads the configuration ini file into the config hash
 sub read_conf {
@@ -234,13 +272,7 @@ sub read_conf {
 
 # This funtion does the actual sendding of the email
 sub send_email {
-    $msg = MIME::Lite->new(
-                     From     => $mail_from,
-                     To       => $mail_to,
-                     Cc       => $mail_cc,
-                     Subject  => $mail_subject,
-                     Type     => 'multipart/mixed'
-                     );
+    $msg = MIME::Lite->new;
 
     if ( $mail_host and $mail_user and $mail_pass ) {
         MIME::Lite->send('smtp', $mail_host, Timeout=>60,
@@ -249,18 +281,42 @@ sub send_email {
         MIME::Lite->send('smtp', $mail_host, Timeout=>60);
     }
 
+    if ($mail_attach and $mail_attname) {
+        $mail_type = 'multipart/mixed';
+        $msg->build( From     => $mail_from,
+                     To       => $mail_to,
+                     Cc       => $mail_cc,
+                     Subject  => $mail_subject,
+                     Type     => $mail_type,
+                     Encoding => '8bit'
+                     );
 
-    # Add your text message.
-    $msg->attach(Type         => 'text',
-                 Data         => $mail_message
-                 );
+        # Add your text message.
+        $msg->attach(Type        => 'TEXT',
+                     Data        => $mail_message,
+                     Disposition => 'inline'
+                     );
 
-    # Specify your file as attachement.
-    $msg->attach(Type         => 'text',
-                 Path         => $logfile,
-                 Filename     => $mail_attname,
-                 Disposition  => $mail_attach
-                 );       
+        # Specify your file as attachement.
+        if ($mail_attach and $mail_attname) {
+            $msg->attach(Type        => 'TEXT',
+                         Path        => $mail_attach,
+                         Filename    => $mail_attname,
+                         Disposition => 'attachment'
+                         );       
+        }
+    } else {
+        $mail_type = 'text/plain';
+        $msg->build( From     => $mail_from,
+                     To       => $mail_to,
+                     Cc       => $mail_cc,
+                     Subject  => $mail_subject,
+                     Type     => $mail_type,
+                     Data     => $mail_message,
+                     Encoding => '8bit'
+                     );
+    }
+
     $msg->send;
 }
 
@@ -276,48 +332,31 @@ sub write_script {
         # Create lines which look like: export MYVAR=value
         print $SCRIPT "export $i=$config{'ENV'}{$i}\n";
     }
-    # Then add the PATH export, just adding the Informix bi directory
+    # Then add the PATH export, just adding the Informix bin directory
     my $path = $ENV{'PATH'};
     print $SCRIPT "export PATH=$path:$config{'ENV'}{'INFORMIXDIR'}/bin\n";
     print $SCRIPT "\n";
     # Run dbaccess over the SQL script on the sysmaster database
-    print $SCRIPT "dbaccess sysmaster $filename 2>/dev/null";
+    print $SCRIPT "dbaccess sysmaster $sqlname 2>/dev/null";
     close $SCRIPT;
+
+    # Make it executable
+    chmod 0700, $scriptfile;
 
     # Return the name of the scriptfile
     return $scriptfile;
 }
 
 sub email_csv {
-    # If it's Sunday
-    if ( $sunday ) {
-        # And we have already run the send csv process
-        if ( stat($lockfile) ) {
-            # Just exit the subroutine
-            # because we have already done the process
-            return;
-        }
-    } else {
-        # It's NOT Sunday
-        # Remove the lockfile
-        unlink($lockfile) if ( stat($lockfile) );
-        # And exit the subroutine
-        return;
-    }
-
     # Time to send the email
     $mail_subject  = "DBSpace CSV file from $host";
-    $mail_message  = "The attached CSV file contains all of the results of\r\n";
-    $mail_message .= "the $0 script for the last week.\r\n";
+    $mail_message  = "The attached CSV file contains all of the results of\n";
+    $mail_message .= "the $0 script for the last week.\n";
     $mail_attach   = $csvfile;
     $mail_attname  = "$basename.csv";
 
-    # And actually send it
+    # Send it
     &send_email;
-
-    # Create the lock file
-    open my $LOCK, '>', $lockfile;
-    close $LOCK;
 
     # And clear out the CSV file to start a new week
     open my $CSV, '>', $csvfile;
