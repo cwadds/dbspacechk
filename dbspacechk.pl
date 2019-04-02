@@ -57,6 +57,7 @@ my @gulp  = ();
 my $junk  = '';
 my $limit = 0;
 my $start = 0;
+my $error = '';
 my %l     = ();
 my $exceeded = 0;
 my $stat_date = '';
@@ -174,7 +175,12 @@ while ( @gulp ) {
             $limit = $config{'DBSPACES'}{$name};
 
             # Increment the exceeded flag if the size is over limit
-            $exceeded++ if $pctu > $limit;
+            if ( $pctu > $limit ) {
+                $exceeded++;
+                $error = "*";
+            } else {
+                $error = "";
+            }
          
             # Write out the logfile
             write LOG;
@@ -219,13 +225,13 @@ print $logtext;
 
 # These next few lines define the output format of the logfile for the write command
 format LOG_TOP =
-DBSpace Name            Size MB     Free MB    Used MB   Percent     Limit
--------------------  ----------  ---------- ---------- --------- ---------
+  DBSpace Name            Size MB     Free MB    Used MB   Percent     Limit
+  -------------------  ----------  ---------- ---------- --------- ---------
 .
  
 format LOG =
-@<<<<<<<<<<<<<<<<<<  @>>>>>>>>>  @>>>>>>>>> @>>>>>>>>> @####.##% @####.##%
-$name,               $size,      $free,     $used,     $pctu,    $limit
+@ @<<<<<<<<<<<<<<<<<<  @>>>>>>>>>  @>>>>>>>>> @>>>>>>>>> @####.##% @####.##%
+$error, $name,         $size,      $free,     $used,     $pctu,    $limit
 .
 
 # Subroutines
