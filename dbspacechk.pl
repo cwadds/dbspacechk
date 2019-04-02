@@ -59,6 +59,7 @@ my $limit = 0;
 my $start = 0;
 my $error = '';
 my %l     = ();
+my $hashref = '';
 my $exceeded = 0;
 my $stat_date = '';
 
@@ -100,8 +101,11 @@ if ( $stat_date < $curr_date ) {
     close $stat;
 }
 
+# Copy the DBSPACES hashref
+$hashref = $config{'DBSPACES'};
+
 # Assemble the list of dbspaces to report
-foreach my $i ( sort keys $config{'DBSPACES'} ) {
+foreach my $i ( sort keys %$hashref ) {
     $junk .= "$i ";
 }
 my $dbspaces = join('", "', split(/\s+/, $junk));
@@ -339,8 +343,11 @@ sub write_script {
     # Create a temporary file
     my ($SCRIPT, $scriptfile) = tempfile( UNLINK => 1, SUFFIX => '.sh') or die "cannot create temp script file: $?\n";
 
+    # Copy the ENV hashref
+    $hashref = $config{'ENV'};
+
     # Gather all of the keys from the config hash from the ENV section
-    foreach my $i (sort keys $config{'ENV'} ) {
+    foreach my $i (sort keys %$hashref ) {
         # Except the path variable (if it's there)
         next if ( $i eq 'PATH' );
         # Create lines which look like: export MYVAR=value
