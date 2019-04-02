@@ -203,7 +203,7 @@ close LOGFILE;
 if ( $exceeded > 0 ) {
     # Set up the variable portions
     $mail_subject = "DBSpace Checker for $host";
-    $mail_message = "WARNING: One or more dbspaces has exceeded the set limit\n\n$logtext";
+    $mail_message = "WARNING: One or more dbspaces has exceeded the set limit";
     $mail_attach  = '';
     $mail_attname = '';
 
@@ -272,6 +272,7 @@ sub read_conf {
 
 # This funtion does the actual sendding of the email
 sub send_email {
+    my $html = '';
     $msg = MIME::Lite->new;
 
     if ( $mail_host and $mail_user and $mail_pass ) {
@@ -287,19 +288,18 @@ sub send_email {
                      To       => $mail_to,
                      Cc       => $mail_cc,
                      Subject  => $mail_subject,
-                     Type     => $mail_type,
-                     Encoding => '8bit'
+                     Type     => $mail_type
                      );
 
         # Add your text message.
-        $msg->attach(Type        => 'TEXT',
+        $msg->attach(Type        => 'TEXT/HTML',
                      Data        => $mail_message,
                      Disposition => 'inline'
                      );
 
         # Specify your file as attachement.
         if ($mail_attach and $mail_attname) {
-            $msg->attach(Type        => 'TEXT',
+            $msg->attach(Type        => 'TEXT/HTML',
                          Path        => $mail_attach,
                          Filename    => $mail_attname,
                          Disposition => 'attachment'
@@ -312,9 +312,17 @@ sub send_email {
                      Cc       => $mail_cc,
                      Subject  => $mail_subject,
                      Type     => $mail_type,
-                     Data     => $mail_message,
-                     Encoding => '8bit'
+                     Data     => [qq($mail_message\n),
+                                  qq($logtext)]
                      );
+
+        $html = $msg->attach(Type => 'multipart/related');
+        $html->attach(Type => 'text/html',
+                      Data => [qq(<h2>$mail_message</h2>\n),
+                               qq(<hr>\n<pre>\n),
+                               qq($logtext),
+                               qq(</pre>)]);
+
     }
 
     $msg->send;
