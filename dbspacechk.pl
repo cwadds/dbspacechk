@@ -101,7 +101,7 @@ if ( open(STAT, "< $statfile")) {
 if ( $stat_date < $curr_date ) {
     # Send an "I'm alive" email
     $mail_subject = "DBSpace Checker for $host is alive";
-    $mail_message = "DBSpace Checker is alive";
+    $mail_message = $mail_subject;
     &send_email;
 
     if ( $sunday ) {
@@ -141,12 +141,13 @@ GROUP BY s.name);
 open(LOGFILE, ">  $logfile") or die "cannot open LOGFILE: $logfile $?\n";
 open(CSV,     ">> $csvfile") or die "cannot open CSV: $csvfile $?\n";
 
-# Open a FD to a scalar in memory to have the log report available
+# Open an FD to a scalar in memory to have the log report available
 open(LOG, '>', \$logtext) or die "Can't open LOG file: $!\n";
  
 # Create a temporary sql file which will be removed when we finish
 # and write the SQL into it.
-my ($SQL, $sqlname) = tempfile( UNLINK => 1, SUFFIX => '.sql') or die "cannot create temp file: $?\n";
+my ($SQL, $sqlname) = tempfile( UNLINK => 1, SUFFIX => '.sql')
+    or die "cannot create temp sql file: $?\n";
 
 print $SQL $sql;
 close $SQL;
@@ -180,8 +181,7 @@ while ( @gulp ) {
             # Reset the block indicator
             $start = 0;
 
-            # Retrieve all required values
-            # from the hash
+            # Retrieve all required values from the hash
             $name = $l{'name'};
             $size = $l{'size'};
             $free = $l{'free'};
@@ -193,8 +193,9 @@ while ( @gulp ) {
             # Retrieve the warning limit from the config array
             $limit = $config{'DBSPACES'}{$name};
 
-            # Increment the exceeded flag if the size is over limit
+            # If the percentage used is over the limit
             if ( $pctu > $limit ) {
+                # Increment the exceeded flag
                 $exceeded++;
                 # And set the error flag to an asterisk
                 $error = "*";
@@ -230,7 +231,7 @@ close CSV;
 print LOGFILE $logtext;
 close LOGFILE;
 
-# If one of the dbsopaces has exceede the limits in the ini file, 
+# If one of the dbspaces has exceeded the limits set in the ini file, 
 # then we need to send off an email
 if ( $exceeded > 0 ) {
     # Set up the variable portions of the email
@@ -319,7 +320,7 @@ sub send_email {
     # Create a new eMail sending object
     $msg = MIME::Lite->new;
 
-    # If the ini files contains: host, user and password
+    # If the ini files contains smtp: host, user and password
     if ( $mail_host and $mail_user and $mail_pass ) {
         MIME::Lite->send('smtp', $mail_host, Timeout=>60,
                           AuthUser=>$mail_user, AuthPass=>$mail_pass);
@@ -347,13 +348,11 @@ sub send_email {
                      );
 
         # Specify the file as attachement.
-        if ($mail_attach and $mail_attname) {
-            $msg->attach(Type        => 'TEXT/HTML',
-                         Path        => $mail_attach,
-                         Filename    => $mail_attname,
-                         Disposition => 'attachment'
-                         );       
-        }
+        $msg->attach(Type        => 'TEXT/HTML',
+                     Path        => $mail_attach,
+                     Filename    => $mail_attname,
+                     Disposition => 'attachment'
+                     );       
     } else { # We are sending an email withOUT attachments
         # Set the correct mail type
         $mail_type = 'text/plain';
@@ -376,7 +375,6 @@ sub send_email {
                                qq(<hr>\n<pre>\n),
                                qq($logtext),
                                qq(</pre>)]);
-
     }
 
     # Send it off
@@ -388,7 +386,8 @@ sub send_email {
 # = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 sub write_script {
     # Create a temporary file
-    my ($SCRIPT, $scriptfile) = tempfile( UNLINK => 1, SUFFIX => '.sh') or die "cannot create temp script file: $?\n";
+    my ($SCRIPT, $scriptfile) = tempfile( UNLINK => 1, SUFFIX => '.sh')
+        or die "cannot create temp script file: $?\n";
 
     # Copy the ENV hashref
     $hashref = $config{'ENV'};
@@ -433,3 +432,62 @@ sub email_csv {
     open  CSV, '>', $csvfile;
     close CSV;
 }
+
+# = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
+# perldoc
+# = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
+
+=head1 NAME
+
+dbspacechk.pl - A script to monitor Informix database dbspaces.
+
+=head1 SYNOPSIS
+
+Call this script from cron on a regular basis to 
+check the sizes and generate the csv file
+
+    */5 * * * * /opt/informix/dbspacechk/dbspacechk.pl > /tmp/dbspacechk.log 2>&1
+
+=head1 DESCRIPTION
+
+This Perl script and associated ini file can be used to monitor dbspace usage in an Informix database.
+
+=head2 The INI File
+
+=over 12
+
+
+=item [ENV] - The environment section
+
+All of the data in this section will be added to the shell script as exports, and then runs the generated SQL command.
+Each element will generate the following:
+
+    export LH_Value=RH_Value
+
+The intention is to ensure that a sane Informix environment is available.
+
+=item [EMAIL] - The eMail section
+
+This section contains email B<send to>,  B<send from> and B<cc> data. It can also optionally contain an SMTP B<server name> and a B<username> and B<password> pair. These will be used to connect to an SMTP server which requires authentication.
+
+=item [DBSPACES] - List of dbspaces to report
+
+This section contains pairs of dbspaces and the warning limit.
+
+=back
+
+=head1 VERSION
+
+2.1.1
+
+=head1 LICENSE
+
+This is released under the 
+GNU General Public License v3.0
+see <https://www.gnu.org/licenses/>
+
+=head1 AUTHOR
+
+Conrad Wadds - cwadds <at> wadds <dot> net <dot> au
+
+=cut
