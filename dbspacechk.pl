@@ -1,6 +1,20 @@
 #!/usr/bin/perl
 #
-# (c) Conrad Wadds<conrad@wadds.net.au> - 2019-03-27
+# Copyright (C) 2019 Conrad Wadds - All Rights Reserved
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+# 
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+# 
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+#
  
 use warnings;
 use strict;
@@ -22,6 +36,7 @@ my $basename = $0;
    $basename =~ s/.pl//;
 my $conffile = "$mydir/$basename.ini";
 
+# Retrieve the config
 my %config = &read_conf;
 
 # Log directory and filenames
@@ -63,7 +78,7 @@ my $hashref = '';
 my $exceeded = 0;
 my $stat_date = '';
 
-# Timestamp for csv report and "is it Sunday" variable
+# Timestamp for csv report
 my $timestamp = POSIX::strftime("%Y/%m/%d %H:%M:%S", localtime);
 # Timestamp to go in the stat file
 my $curr_date = POSIX::strftime("%Y%m%d", localtime);
@@ -76,7 +91,7 @@ if ( open(STAT, "< $statfile")) {
     close STAT;
 } else {
     # If the file doesn't exist, set the status date to "yesterday"
-    # # NB: This will always work because we are treating the date
+    # NB: This will always work because we are treating the date
     # as just a number, so (20190101 - 1), even though not a date
     # will still work with the '<' operator
     $stat_date = $curr_date - 1;
@@ -95,10 +110,10 @@ if ( $stat_date < $curr_date ) {
         &email_csv;
     }
 
-    # Update the stat file
-    open my $stat, '>', $statfile;
-    print $stat $curr_date;
-    close $stat;
+    # Update the stat file with the current date
+    open  STAT, '>', $statfile;
+    print STAT $curr_date;
+    close STAT;
 }
 
 # Copy the DBSPACES hashref
@@ -142,18 +157,18 @@ my $script = &write_script;
 # And gather the output into the @gulp array
 @gulp = `$script`;
 
-# Read the output of the SQL command
+# Loop over the output of the SQL command
 while ( @gulp ) {
     $_ = shift @gulp;
 
-    # Tidy up the output, getting rid of newlines,
+    # Tidy up the input, getting rid of newlines,
     # leading and trailing spaces and empty lines;
     chomp;
     s/\s*$//;
     s/^\ *//;
     next if /^$/;
 
-    # Each dbspace block is bounded with START and END
+    # Each dbspace block is bounded with the text 'START' and 'END'
     if ( $start == 0 ) {
         # We found the start of a block
         $start = 1 if /START/;
@@ -181,10 +196,15 @@ while ( @gulp ) {
             # Increment the exceeded flag if the size is over limit
             if ( $pctu > $limit ) {
                 $exceeded++;
+                # And set the error flag to an asterisk
                 $error = "*";
             } else {
+                # Clear out the error flag
                 $error = "";
             }
+
+            # Reinitialise the %l hash
+            %l = ();
          
             # Write out the logfile
             write LOG;
@@ -192,7 +212,7 @@ while ( @gulp ) {
             # And the CSV file
             print CSV "$timestamp\,$name\,$size\,$free\,$used\,$pctu\,$limit\n";
         } else {
-            # Inside the dbspace block
+            # We are inside the dbspace block
             # Split the line into key/value pairs
             my ($key, $val) = split;
 
@@ -202,16 +222,18 @@ while ( @gulp ) {
     }
 }
 
-# Close the opened files
+# Close the opened file handles
 close LOG;
 close CSV;
 
+# Output the log report to the log file
 print LOGFILE $logtext;
 close LOGFILE;
 
-# If we need to send off an email
+# If one of the dbsopaces has exceede the limits in the ini file, 
+# then we need to send off an email
 if ( $exceeded > 0 ) {
-    # Set up the variable portions
+    # Set up the variable portions of the email
     $mail_subject = "DBSpace Checker for $host";
     $mail_message = "WARNING: One or more dbspaces has exceeded the set limit";
     $mail_attach  = '';
@@ -225,9 +247,13 @@ if ( $exceeded > 0 ) {
 # Useful if run from the command line
 print $logtext;
 
-# End of program
+# = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
+# End of main program code
+# = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 
-# These next few lines define the output format of the logfile for the write command
+# = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
+# Log report format
+# = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 format LOG_TOP =
   DBSpace Name            Size MB     Free MB    Used MB   Percent     Limit
   -------------------  ----------  ---------- ---------- --------- ---------
@@ -238,9 +264,13 @@ format LOG =
 $error, $name,         $size,      $free,     $used,     $pctu,    $limit
 .
 
+# = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 # Subroutines
+# = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 
+# = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 # This subroutine reads the configuration ini file into the config hash
+# = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 sub read_conf {
     # Set up some local variables
     my %config;
@@ -280,20 +310,29 @@ sub read_conf {
     return %config;
 }
 
-# This funtion does the actual sendding of the email
+# = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
+# This funtion will send an email to the recipients listed in the ini file
+# = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 sub send_email {
     my $html = '';
+
+    # Create a new eMail sending object
     $msg = MIME::Lite->new;
 
+    # If the ini files contains: host, user and password
     if ( $mail_host and $mail_user and $mail_pass ) {
         MIME::Lite->send('smtp', $mail_host, Timeout=>60,
                           AuthUser=>$mail_user, AuthPass=>$mail_pass);
+    # Else if we just have a mail host
     } elsif ( $mail_host ) {
         MIME::Lite->send('smtp', $mail_host, Timeout=>60);
     }
 
+    # If we are sending an email with attachments
     if ($mail_attach and $mail_attname) {
+        # Set the mail type
         $mail_type = 'multipart/mixed';
+        # Build the email object
         $msg->build( From     => $mail_from,
                      To       => $mail_to,
                      Cc       => $mail_cc,
@@ -301,13 +340,13 @@ sub send_email {
                      Type     => $mail_type
                      );
 
-        # Add your text message.
+        # Add the textual message.
         $msg->attach(Type        => 'TEXT/HTML',
                      Data        => $mail_message,
                      Disposition => 'inline'
                      );
 
-        # Specify your file as attachement.
+        # Specify the file as attachement.
         if ($mail_attach and $mail_attname) {
             $msg->attach(Type        => 'TEXT/HTML',
                          Path        => $mail_attach,
@@ -315,8 +354,10 @@ sub send_email {
                          Disposition => 'attachment'
                          );       
         }
-    } else {
+    } else { # We are sending an email withOUT attachments
+        # Set the correct mail type
         $mail_type = 'text/plain';
+        # And build the mail object
         $msg->build( From     => $mail_from,
                      To       => $mail_to,
                      Cc       => $mail_cc,
@@ -326,7 +367,10 @@ sub send_email {
                                   qq($logtext)]
                      );
 
+        # Repeat the process to create an HTML part 
         $html = $msg->attach(Type => 'multipart/related');
+        # And attach it to our mail object
+        # formsattig the output to give a prettier email body
         $html->attach(Type => 'text/html',
                       Data => [qq(<h2>$mail_message</h2>\n),
                                qq(<hr>\n<pre>\n),
@@ -335,10 +379,13 @@ sub send_email {
 
     }
 
+    # Send it off
     $msg->send;
 }
 
+# = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 # This subroutine creates the script file to be executed
+# = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 sub write_script {
     # Create a temporary file
     my ($SCRIPT, $scriptfile) = tempfile( UNLINK => 1, SUFFIX => '.sh') or die "cannot create temp script file: $?\n";
@@ -368,8 +415,11 @@ sub write_script {
     return $scriptfile;
 }
 
+# = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
+# This subroutine emails the accumulated data in the CSV file and clears it out
+# = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 sub email_csv {
-    # Time to send the email
+    # Setup the email and detail file to be attached
     $mail_subject  = "DBSpace CSV file from $host";
     $mail_message  = "The attached CSV file contains all of the results of\n";
     $mail_message .= "the $0 script for the last week.\n";
@@ -380,6 +430,6 @@ sub email_csv {
     &send_email;
 
     # And clear out the CSV file to start a new week
-    open my $CSV, '>', $csvfile;
-    close $CSV;
+    open  CSV, '>', $csvfile;
+    close CSV;
 }
