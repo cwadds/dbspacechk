@@ -10,7 +10,7 @@ The ini file contains sections which are treated differently.
 
   All of the data in this section will be added to the shell script which is run the generated SQL command.
   Each element will generate the following: export LH_Value=RH_Value
-  The intenstion is to ensure that a sane Informix environment is available.
+  The intention is to ensure that a sane Informix environment is available.
 
 * **[EMAIL]** - The eMail section
 
