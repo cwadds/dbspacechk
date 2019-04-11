@@ -69,7 +69,6 @@ my $size  = 0;
 my $free  = 0;
 my $pctu  = 0;
 my @gulp  = ();
-my $junk  = '';
 my $limit = 0;
 my $start = 0;
 my $error = '';
@@ -92,7 +91,7 @@ if ( open(STAT, "< $statfile")) {
 } else {
     # If the file doesn't exist, set the status date to "yesterday"
     # NB: This will always work because we are treating the date
-    # as just a number, so (20190101 - 1), even though not a date
+    # as 'just a number', so (20190101 - 1), even though not a date
     # will still work with the '<' operator
     $stat_date = $curr_date - 1;
 }
@@ -111,7 +110,7 @@ if ( $stat_date < $curr_date ) {
     }
 
     # Update the stat file with the current date
-    open  STAT, '>', $statfile;
+    open (STAT, '>', $statfile);
     print STAT $curr_date;
     close STAT;
 }
@@ -120,10 +119,7 @@ if ( $stat_date < $curr_date ) {
 $hashref = $config{'DBSPACES'};
 
 # Assemble the list of dbspaces to report
-foreach my $i ( sort keys %$hashref ) {
-    $junk .= "$i ";
-}
-my $dbspaces = join('", "', split(/\s+/, $junk));
+my $dbspaces = join('", "', keys %$hashref);
  
 # Create the SQL
 my $sql = qq(SELECT "START" start,
@@ -138,11 +134,10 @@ WHERE c.dbsnum = s.dbsnum
 GROUP BY s.name);
 
 # Open output files
-open(LOGFILE, ">  $logfile") or die "cannot open LOGFILE: $logfile $?\n";
-open(CSV,     ">> $csvfile") or die "cannot open CSV: $csvfile $?\n";
+open(CSV, '>>', $csvfile) or die "cannot open CSV: $csvfile $?\n";
 
 # Open an FD to a scalar in memory to have the log report available
-open(LOG, '>', \$logtext) or die "Can't open LOG file: $!\n";
+open(LOG, '>', \$logtext) or die "Can't open LOG scalar: $?\n";
  
 # Create a temporary sql file which will be removed when we finish
 # and write the SQL into it.
@@ -175,9 +170,10 @@ while ( @gulp ) {
         $start = 1 if /START/;
         next;
     } else {
-        # We found the end of a block
-        # so we have all of the variables required
         if ( /END/ ) {
+            # We found the end of a block
+            # so we have all of the variables required
+
             # Reset the block indicator
             $start = 0;
 
@@ -228,6 +224,7 @@ close LOG;
 close CSV;
 
 # Output the log report to the log file
+open (LOGFILE, '>', $logfile) or die "cannot open LOGFILE: $logfile: $?\n";
 print LOGFILE $logtext;
 close LOGFILE;
 
@@ -279,29 +276,23 @@ sub read_conf {
     local $_;
 
     # Open the ini file
-    open CONF, "< $conffile" or die "cannot open config file: $?\n";
+    open (CONF, '<', $conffile) or die "cannot open config file: $?\n";
     # And iterate over its contents
     foreach $_ (<CONF>) {
-        chomp;                  # Remove EOL characters
-        s/\s+$//;               # Remove trailing spaces
-        s/^\s+//;               # Remove leading spaces
+        $_ = &trimit($_);       # Remove leading and trailing spaces
         next if (/^$/);         # Ignore blank lines
         next if (/^\s*[#;]/);   # Ignore comment lines
 
         # New [section]
         if ( m/^\[(.*)\]/ ) {
-            $section = uc($1);
-            $section =~ s/\s+$//;
-            $section =~ s/^\s+//;
+            $section = &trimit(uc($1));
             next;
         }
 
         # Extract key/value pairs
         my ($key, $val) = split /=/;
-        $key =~ s/\s+$//;
-        $key =~ s/^\s+//;
-        $val =~ s/\s+$//;
-        $val =~ s/^\s+//;
+        $key = &trimit($key);
+        $val = &trimit($val);
 
         # And add them to the config hash, including the section header
         $config{$section}{$key} = $val;
@@ -309,6 +300,20 @@ sub read_conf {
 
     # Return the contents of the config hash
     return %config;
+}
+
+# = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
+# This funtion will trim leading and trailing spaces from the passed scalar
+# = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
+sub trimit {
+    local $_ = shift;
+
+    chomp;      # Remove EOL character
+    s/\s+$//;   # Remove leading spaces
+    s/^\s+//;   # Remove trailing spaces
+
+    # Return the trimmed scalar
+    return $_;
 }
 
 # = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
@@ -433,6 +438,8 @@ sub email_csv {
     close CSV;
 }
 
+__END__
+
 # = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 # perldoc
 # = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
@@ -452,12 +459,14 @@ check the sizes and generate the csv file
 
 This Perl script and associated ini file can be used to monitor dbspace usage in an Informix database.
 
-=head2 The INI File
+=head2 The INI File:
 
 =over 12
 
 
-=item [ENV] - The environment section
+=item B<[ENV]>
+
+The environment section
 
 All of the data in this section will be added to the shell script as exports, and then runs the generated SQL command.
 Each element will generate the following:
@@ -466,11 +475,15 @@ Each element will generate the following:
 
 The intention is to ensure that a sane Informix environment is available.
 
-=item [EMAIL] - The eMail section
+=item B<[EMAIL]>
+
+The eMail section
 
 This section contains email B<send to>,  B<send from> and B<cc> data. It can also optionally contain an SMTP B<server name> and a B<username> and B<password> pair. These will be used to connect to an SMTP server which requires authentication.
 
-=item [DBSPACES] - List of dbspaces to report
+=item B<[DBSPACES]>
+
+List of dbspaces to report
 
 This section contains pairs of dbspaces and the warning limit.
 
