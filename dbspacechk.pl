@@ -451,13 +451,6 @@ sub email_csv {
     close CSV;
 }
 
-sub compressTxtFiles {
-    my $zipfile = shift ;
-    my $dir     = shift ;
-    zip [ <$dir/*.txt> ] => $zipfile,
-        FilterName => sub { s[^$dir/][] } ;  
-}
-
 __END__
 
 # = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
