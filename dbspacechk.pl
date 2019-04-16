@@ -25,6 +25,7 @@ use MIME::Base64;
 use Authen::SASL;
 use File::Basename;
 use Sys::Hostname;
+use IO::Compress::Zip qw(zip $ZipError) ;
 
 my $mydir = dirname(__FILE__);
 my $host = hostname();
@@ -44,6 +45,7 @@ my $logdir   = $config{'ENV'}{'LOGDIR'};
    $logdir   = '/var/log/informix' unless $logdir;
 my $logfile  = "$logdir/$basename.log";
 my $csvfile  = "$logdir/$basename.csv";
+my $csvzipt  = "$logdir/$basename.csv.zip";
 my $statfile = "$logdir/$basename.stat";
 my $logtext  = '';
 
@@ -321,6 +323,7 @@ sub trimit {
 # = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 sub send_email {
     my $html = '';
+    my $mime_type = 'TEXT/HTML';
 
     # Create a new eMail sending object
     $msg = MIME::Lite->new;
@@ -353,7 +356,8 @@ sub send_email {
                      );
 
         # Specify the file as attachement.
-        $msg->attach(Type        => 'TEXT/HTML',
+        $mime_type = 'application/zip' if $mail_attname =~ m/zip/;
+        $msg->attach(Type        => $mime_type,
                      Path        => $mail_attach,
                      Filename    => $mail_attname,
                      Disposition => 'attachment'
@@ -423,12 +427,21 @@ sub write_script {
 # This subroutine emails the accumulated data in the CSV file and clears it out
 # = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 sub email_csv {
+    # Because some email systems will not transmit *.csv files,
+    # we are going to compress the file before attaching it to
+    # the email.
+    # The FilterName stanza will strip off the leading directory
+    # portion of the filename
+    zip $csvfile => $csvzipt,
+        FilterName => sub { s[^$logdir/][] }
+        or die "zip failed: $ZipError\n";
+
     # Setup the email and detail file to be attached
     $mail_subject  = "DBSpace CSV file from $host";
     $mail_message  = "The attached CSV file contains all of the results of\n";
     $mail_message .= "the $0 script for the last week.\n";
-    $mail_attach   = $csvfile;
-    $mail_attname  = "$basename.csv";
+    $mail_attach   = $csvzipt;
+    $mail_attname  = "$basename.csv.zip";
 
     # Send it
     &send_email;
@@ -436,6 +449,13 @@ sub email_csv {
     # And clear out the CSV file to start a new week
     open  CSV, '>', $csvfile;
     close CSV;
+}
+
+sub compressTxtFiles {
+    my $zipfile = shift ;
+    my $dir     = shift ;
+    zip [ <$dir/*.txt> ] => $zipfile,
+        FilterName => sub { s[^$dir/][] } ;  
 }
 
 __END__
