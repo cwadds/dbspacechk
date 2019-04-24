@@ -12,6 +12,22 @@ The ini file contains sections which are treated differently.
   Each element will generate the following: export LH_Value=RH_Value
   The intention is to ensure that a sane Informix environment is available.
 
+* **[CSVFILE]** - The eMail section
+
+  This section contains variables which modify the behavior when processing the CSV file
+  
+  *  CLEARDAY = 3
+  
+     Day of week to send/clear csvfile: Sun = 0, Mon = 1, etc
+  
+  *  MAILCSV  = yes
+  
+     Email the csv file yes/no?
+  
+  *  CLEARCSV = no  
+  
+     Should the file be cleared yes/no?
+
 * **[EMAIL]** - The eMail section
 
   This section contains email send to send from and cc data.
