@@ -18,6 +18,14 @@ SMTPHOST =
 SMTPUSER = 
 SMTPPASS = 
 
+[CSVFILE]
+# Day of week to send/clear csvfile: Sun = 0, Mon = 1, etc
+CLEARDAY = 0
+# Email the csv file?
+MAILCSV  = no
+# Should the file be cleared?
+CLEARCSV = yes
+
 [DBSPACES]
 datadbs1 = 85
 rootdbs  = 35

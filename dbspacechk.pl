@@ -63,6 +63,35 @@ my $mail_message = '';
 my $mail_attach  = '';
 my $mail_attname = '';
 
+# CSVFILE variables
+my $timestamp = POSIX::strftime("%Y/%m/%d %H:%M:%S", localtime);
+my $curr_date = POSIX::strftime("%Y%m%d", localtime);
+
+my $clear_dow = $config{'CSVFILE'}{'CLEARDAY'};
+if ( ! defined($clear_dow) ) {
+    # Default to Sunday
+    $clear_dow = 0;
+} else {
+    # If DOW not between 0 and 6 or any
+    # other non numeric value
+    unless ( $clear_dow =~ m/^[0-6]$/ ) {
+        # Default to Sunday
+        $clear_dow = 0;
+    }
+}
+# If current dow matches clear_dow then set proc_csv to true else false
+my $proc_csv = (POSIX::strftime("%w", localtime) == $clear_dow) ? 1 : 0;
+
+my $send_csvfile = $config{'CSVFILE'}{'MAILCSV'};
+# Set variable to true if 'yes',
+# otherwise, set to false (IE: even if no INI entry)
+$send_csvfile = (lc($send_csvfile) eq 'yes') ? 1 : 0;
+
+my $clear_csvfile = $config{'CSVFILE'}{'CLEARCSV'};
+# Set variable to true if 'yes',
+# otherwise, set to false (IE: even if no INI entry)
+$clear_csvfile = (lc($clear_csvfile) eq 'yes') ? 1 : 0;
+
 # many, many variables...
 my $cmd   = '';
 my $name  = '';
@@ -78,13 +107,6 @@ my %l     = ();
 my $hashref = '';
 my $exceeded = 0;
 my $stat_date = '';
-
-# Timestamp for csv report
-my $timestamp = POSIX::strftime("%Y/%m/%d %H:%M:%S", localtime);
-# Timestamp to go in the stat file
-my $curr_date = POSIX::strftime("%Y%m%d", localtime);
-# Sunday is day 0, which evaluates to false, so invert the result
-my $sunday = POSIX::strftime("%w", localtime) ? 0 : 1;
 
 # Retrieve the last status date from the stat file
 if ( open(STAT, "< $statfile")) {
@@ -105,7 +127,7 @@ if ( $stat_date < $curr_date ) {
     $mail_message = $mail_subject;
     &send_email;
 
-    if ( $sunday ) {
+    if ( $proc_csv ) {
         # Call the subroutine to send out the 
         # weekly email of all the CSV records
         &email_csv;
@@ -424,31 +446,36 @@ sub write_script {
 }
 
 # = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
-# This subroutine emails the accumulated data in the CSV file and clears it out
+# This subroutine emails the accumulated data in the CSV file (if requested)
+# and clears out the file (also, if requested)
 # = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 sub email_csv {
-    # Because some email systems will not transmit *.csv files,
-    # we are going to compress the file before attaching it to
-    # the email.
-    # The FilterName stanza will strip off the leading directory
-    # portion of the filename
-    zip $csvfile => $csvzipt,
-        FilterName => sub { s[^$logdir/][] }
-        or die "zip failed: $ZipError\n";
+    if ( $send_csvfile ) {
+        # Because some email systems will not transmit *.csv files,
+        # we are going to compress the file before attaching it to
+        # the email.
+        # The FilterName stanza will strip off the leading directory
+        # portion of the filename
+        zip $csvfile => $csvzipt,
+            FilterName => sub { s[^$logdir/][] }
+            or die "zip failed: $ZipError\n";
 
-    # Setup the email and detail file to be attached
-    $mail_subject  = "DBSpace CSV file from $host";
-    $mail_message  = "The attached CSV file contains all of the results of\n";
-    $mail_message .= "the $0 script for the last week.\n";
-    $mail_attach   = $csvzipt;
-    $mail_attname  = "$basename.csv.zip";
+        # Setup the email and detail file to be attached
+        $mail_subject  = "DBSpace CSV file from $host";
+        $mail_message  = "The attached CSV file contains all of the results of\n";
+        $mail_message .= "the $0 script for the last week.\n";
+        $mail_attach   = $csvzipt;
+        $mail_attname  = "$basename.csv.zip";
 
-    # Send it
-    &send_email;
+        # Send it
+        &send_email;
+    }
 
-    # And clear out the CSV file to start a new week
-    open  CSV, '>', $csvfile;
-    close CSV;
+    if ( $clear_csvfile ) {
+        # And clear out the CSV file to start a new week
+        open  CSV, '>', $csvfile;
+        close CSV;
+    }
 }
 
 __END__
