@@ -58,5 +58,5 @@ The script can be run manually, but probably should be run from **cron**.  An ex
 
 The script will email the log file to the recipients listed in the ini file if the limits are exceeded on any of the dbspaces.
 
-Additionally, each Sunday, the CSV file is emailed and then cleared.
+Additionally, each Sunday, the CSV file is emailed and then, optionally, cleared.
 This file can be loaded into a spreadsheet program for further reporting, graphing and monitoring.
