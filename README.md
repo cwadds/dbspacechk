@@ -30,7 +30,7 @@ The ini file contains sections which are treated differently.
 
 * **[EMAIL]** - The eMail section
 
-  This section contains email send to send from and cc data.
+  This section contains email ```send to```, ```send from``` and ```cc``` data.
   It can also optionally contain an SMTP server name and a username and password pair.
   These will be used to connect to an SMTP server which requires authentication.
 
